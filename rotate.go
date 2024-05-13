@@ -28,8 +28,22 @@ func (r *CmdRotate) Run(ktx *Context) error {
 		return fmt.Errorf("getting current key: %w", err)
 	}
 
-	if time.Since(*keyCurrent.KeyMetadata.CreationDate) < r.MinimumAge && !r.Force {
-		return fmt.Errorf("current key %s is too young to rotate", *keyCurrent.KeyMetadata.KeyId)
+	// NOTE: no pagination! We assume we always have < 50 aliases.
+	currentAliases, err := ktx.kms.ListAliases(context.Background(), &kms.ListAliasesInput{
+		KeyId: keyCurrent.KeyMetadata.KeyId,
+	})
+	if err != nil {
+		return fmt.Errorf("listing aliases for current key: %w", err)
+	}
+
+	for _, alias := range currentAliases.Aliases {
+		if *alias.AliasName != *ktx.keyAlias(keySuffixCurrent) {
+			continue
+		}
+		slog.Debug("Found current alias", "name", *alias.AliasName, "lastUpdated", *alias.LastUpdatedDate)
+		if time.Since(*alias.LastUpdatedDate) < r.MinimumAge && !r.Force {
+			return fmt.Errorf("current key %s is too new to be considered for rotation", *keyCurrent.KeyMetadata.KeyId)
+		}
 	}
 
 	keyPrevious, err := ktx.kms.DescribeKey(context.Background(), &kms.DescribeKeyInput{
