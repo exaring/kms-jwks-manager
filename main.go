@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 
 	"github.com/alecthomas/kong"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,11 +22,15 @@ type cli struct {
 
 	Export CmdExport `cmd:"" help:"Export KMS keys as JWKS"`
 	Rotate CmdRotate `cmd:"" help:"Rotate KMS keys; will create new keys if necessary"`
+
+	LogLevel slog.Level `help:"Log level" default:"info"`
 }
 
 func main() {
 	var cli cli
 	ctx := kong.Parse(&cli)
+
+	slog.SetLogLoggerLevel(cli.LogLevel)
 
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
